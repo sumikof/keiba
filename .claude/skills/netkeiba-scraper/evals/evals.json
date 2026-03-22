@@ -1,0 +1,74 @@
+{
+  "skill_name": "netkeiba-scraper",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "今日のJRAのレース一覧を取得して、どんなレースが開催されているか教えてください。",
+      "expected_output": "本日のJRA開催レース一覧（競馬場名、レース番号、レース名、発走時刻、レースID）がターミナルに表示される。開催がない場合はその旨が表示される。",
+      "files": [],
+      "assertions": [
+        {
+          "text": "get_race_list.pyスクリプトが実行された（出力にスクリプト実行の証拠がある）",
+          "passed": null,
+          "evidence": ""
+        },
+        {
+          "text": "エラーで異常終了していない（通信エラー以外でクラッシュしていない）",
+          "passed": null,
+          "evidence": ""
+        },
+        {
+          "text": "レース一覧テーブル（競馬場名・レースID等）または開催なし旨のメッセージが出力されている",
+          "passed": null,
+          "evidence": ""
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "netkeibaで2025年1月5日に中山競馬場で開催された第11レース（race_id: 202506010111）の出走表と、出走馬のオッズを調べてください。",
+      "expected_output": "指定レースの出走表（枠番・馬番・馬名・騎手・斤量）と単勝・複勝オッズが表示される。",
+      "files": [],
+      "assertions": [
+        {
+          "text": "get_race_entry.pyが実行された（出走表取得の試行がある）",
+          "passed": null,
+          "evidence": ""
+        },
+        {
+          "text": "get_odds.pyが実行された（オッズ取得の試行がある）",
+          "passed": null,
+          "evidence": ""
+        },
+        {
+          "text": "出走表またはオッズ情報（あるいは適切なエラーメッセージ）が出力された",
+          "passed": null,
+          "evidence": ""
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "イクイノックスという競走馬の情報と過去成績をnetkeibaから取得してください。",
+      "expected_output": "イクイノックスのプロフィール（血統・調教師・馬主など）と近走成績（日付・レース名・着順・騎手・タイムなど）が表示される。",
+      "files": [],
+      "assertions": [
+        {
+          "text": "get_horse_info.pyが実行された（--nameオプションか馬IDが使われた）",
+          "passed": null,
+          "evidence": ""
+        },
+        {
+          "text": "「イクイノックス」という馬名または関連情報が出力に含まれる",
+          "passed": null,
+          "evidence": ""
+        },
+        {
+          "text": "過去成績テーブル（レース名・着順など）が表示された",
+          "passed": null,
+          "evidence": ""
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(python3 scripts/get_race_list.py 20260322)",
+      "Bash(python3 scripts/get_race_entry.py 202609011011)",
+      "Bash(python3 scripts/get_odds.py 202609011011)",
+      "Bash(python3 scripts/get_odds.py 202609011011 --type sanrenpuku)",
+      "Bash(python3 scripts/get_horse_info.py 2021105369)",
+      "Bash(python3 scripts/get_horse_info.py 2018104942)",
+      "Bash(python3 scripts/get_horse_info.py 2021100651)",
+      "Bash(python3 scripts/get_horse_info.py 2021105433)",
+      "Bash(python3 scripts/get_horse_info.py 2022104645)",
+      "Bash(python3 scripts/get_horse_info.py 2022105466)",
+      "Bash(python3 scripts/get_horse_info.py 2020105786)",
+      "Bash(python3 scripts/get_horse_info.py 2019104091)",
+      "Bash(python3 scripts/get_horse_info.py 2021105104)",
+      "Bash(python3 scripts/get_horse_info.py 2016102175)",
+      "Bash(python3:*)"
+    ]
+  }
+}
