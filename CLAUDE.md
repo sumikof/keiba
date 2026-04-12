@@ -14,43 +14,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 作業フロー
 
+0. 環境構築
 1. `netkeiba-scraper` スキルを使ってレース情報を取得
 2. 対象レースの出走表・オッズを取得
-3. 全出走馬の過去成績を `get_horse_info.py` で取得
+3. 全出走馬の過去成績を `netkeiba-scraper` で取得
 4. **全頭評価**: 各馬に評価理由と点数（スコア）を付ける
 5. 評価を基に三連複フォーメーションの買い目を組み立て、1万円以内に収める
 
 ## スクリプトの使い方
 
-依存ライブラリのインストール:
+## 環境構築手順
+
 ```bash
+# 仮想環境を作成、読み込み
+python3 -m venv venv
+source venv/bin/activate
+
+# 依存ライブラリをインストール
 pip install requests beautifulsoup4 pandas lxml
 ```
 
-スクリプトはすべて `.claude/skills/netkeiba-scraper/scripts/` に置かれている:
-
-```bash
-# 今日のレース一覧
-python3 .claude/skills/netkeiba-scraper/scripts/get_race_list.py
-
-# 出走表取得（レースID12桁）
-python3 .claude/skills/netkeiba-scraper/scripts/get_race_entry.py <RACE_ID>
-
-# 三連複オッズ取得
-python3 .claude/skills/netkeiba-scraper/scripts/get_odds.py <RACE_ID> --type sanrenpuku
-
-# 馬の過去成績取得
-python3 .claude/skills/netkeiba-scraper/scripts/get_horse_info.py <HORSE_ID>
-
-# レース結果確認
-python3 .claude/skills/netkeiba-scraper/scripts/get_race_result.py <RACE_ID>
-```
-
-## レースID形式
-
-12桁: `YYYYCCKKDDNN`
-- CC: 競馬場コード（05=東京, 06=中山, 07=中京, 08=京都, 09=阪神 など）
-- KK: 開催回、DD: 開催日、NN: レース番号
+## 分析方法
+分析に必要な情報は `netkeiba-scraper` を使用して情報取得を行う
 
 ## 全頭評価の方針
 
