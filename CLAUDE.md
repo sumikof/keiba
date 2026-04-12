@@ -20,6 +20,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 3. 全出走馬の過去成績を `netkeiba-scraper` で取得
 4. **全頭評価**: 各馬に評価理由と点数（スコア）を付ける
 5. 評価を基に三連複フォーメーションの買い目を組み立て、1万円以内に収める
+6. 買い目レポートをreports/に作成する
 
 ## スクリプトの使い方
 

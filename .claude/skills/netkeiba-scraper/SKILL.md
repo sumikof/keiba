@@ -17,18 +17,18 @@ pip install requests beautifulsoup4 pandas lxml
 
 1. **タスク特定** → 下表から目的に合うスクリプトを選ぶ
 2. **レースID特定** → レースIDが必要な場合は `get_race_list.py` で確認するか、ユーザに確認
-3. **スクリプト実行** → `python3 scripts/<スクリプト名>.py <引数>`
+3. **スクリプト実行** → `python scripts/<スクリプト名>.py <引数>`
 4. **結果解釈** → 出力テーブルを読み取ってユーザに説明する
 
 ## 機能選択テーブル
 
 | 目的 | スクリプト | 使用例 |
 |------|-----------|--------|
-| 開催レース一覧を取得 | `get_race_list.py` | `python3 scripts/get_race_list.py 20250101` |
-| 出走表・枠順を取得 | `get_race_entry.py` | `python3 scripts/get_race_entry.py 202501010101` |
-| オッズを取得 | `get_odds.py` | `python3 scripts/get_odds.py 202501010101` |
-| 出走馬のプロフィール・成績 | `get_horse_info.py` | `python3 scripts/get_horse_info.py 2020104753` |
-| レース結果・着順・払戻 | `get_race_result.py` | `python3 scripts/get_race_result.py 202501010101` |
+| 開催レース一覧を取得 | `get_race_list.py` | `python ./scripts/get_race_list.py 20250101` |
+| 出走表・枠順を取得 | `get_race_entry.py` | `python ./scripts/get_race_entry.py 202501010101` |
+| オッズを取得 | `get_odds.py` | `python ./scripts/get_odds.py 202501010101` |
+| 出走馬のプロフィール・成績 | `get_horse_info.py` | `python ./scripts/get_horse_info.py 2020104753` |
+| レース結果・着順・払戻 | `get_race_result.py` | `python ./scripts/get_race_result.py 202501010101` |
 
 ## レースIDの形式
 
@@ -51,10 +51,10 @@ JRAのレースIDは12桁の数字：`YYYYCCKKDDNN`
 
 ```bash
 # 今日のレース一覧
-python3 scripts/get_race_list.py
+python ./scripts/get_race_list.py
 
 # 日付を指定（YYYYMMDD形式）
-python3 scripts/get_race_list.py 20250601
+python ./scripts/get_race_list.py 20250601
 ```
 
 出力: 競馬場名、レース番号、レース名、発走時刻、出走頭数、レースID
@@ -62,7 +62,7 @@ python3 scripts/get_race_list.py 20250601
 ### 出走表・枠順（get_race_entry.py）
 
 ```bash
-python3 scripts/get_race_entry.py 202501010101
+python ./scripts/get_race_entry.py 202501010101
 ```
 
 出力: 枠番、馬番、馬名、性齢、斤量、騎手、調教師、馬体重、前走成績
@@ -71,13 +71,13 @@ python3 scripts/get_race_entry.py 202501010101
 
 ```bash
 # 単勝・複勝（デフォルト）
-python3 scripts/get_odds.py 202501010101
+python ./scripts/get_odds.py 202501010101
 
 # 馬連
-python3 scripts/get_odds.py 202501010101 --type umaren
+python ./scripts/get_odds.py 202501010101 --type umaren
 
 # 3連複
-python3 scripts/get_odds.py 202501010101 --type sanrenpuku
+python ./scripts/get_odds.py 202501010101 --type sanrenpuku
 ```
 
 対応馬券: `tansho`（単勝）, `fukusho`（複勝）, `umaren`（馬連）, `umatan`（馬単）, `wide`（ワイド）, `sanrenpuku`（3連複）, `sanrentan`（3連単）
@@ -86,10 +86,10 @@ python3 scripts/get_odds.py 202501010101 --type sanrenpuku
 
 ```bash
 # 馬IDで検索（db.netkeiba.comのURL末尾の数字）
-python3 scripts/get_horse_info.py 2020104753
+python ./scripts/get_horse_info.py 2020104753
 
 # 馬名で検索（出走表から馬IDを取得して自動検索）
-python3 scripts/get_horse_info.py --name "イクイノックス"
+python ./scripts/get_horse_info.py --name "イクイノックス"
 ```
 
 出力: 馬名、性別、毛色、生年月日、調教師、馬主、生産牧場、血統（父・母・母父）、通算成績、近走成績
@@ -97,7 +97,7 @@ python3 scripts/get_horse_info.py --name "イクイノックス"
 ### レース結果（get_race_result.py）
 
 ```bash
-python3 scripts/get_race_result.py 202501010101
+python ./scripts/get_race_result.py 202501010101
 ```
 
 出力: 着順、枠番、馬番、馬名、タイム、着差、騎手、斤量、人気、オッズ、払戻金情報
