@@ -157,6 +157,18 @@ description: "中央競馬の予想を 8 段階のロジカルなプロセスで
 - 単勝・複勝で予算 100 円ちょうど → 軸 1 頭 1 点で組む
 - バリデーションは段階 8 の入口で実施
 
+### 予算配分の計算ヘルパー
+
+予算配分の計算で迷った場合は `.claude/skills/netkeiba-scraper/scripts/_prediction_helpers.py` の `allocate_budget(total, ratios)` を利用してよい。
+
+例:
+
+```python
+from _prediction_helpers import allocate_budget
+allocate_budget(10000, {"main": 0.70, "sub": 0.15, "dark_horse": 0.15})
+# {"main": 7000, "sub": 1500, "dark_horse": 1500}
+```
+
 ## 段階 9: レポート生成
 
 `reports/yyyymmdd_<レース名>.md` に以下の章立てで出力する:

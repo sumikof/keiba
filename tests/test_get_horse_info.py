@@ -1,7 +1,3 @@
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".claude", "skills", "netkeiba-scraper", "scripts"))
-
 from bs4 import BeautifulSoup
 from get_horse_info import parse_race_row
 
