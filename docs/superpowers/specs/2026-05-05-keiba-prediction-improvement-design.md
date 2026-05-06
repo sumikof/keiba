@@ -90,7 +90,7 @@ reports/                               # 既存（出力先は変更なし）
 | `<レース名>` | 必須 | 文字列（部分一致） | コマンドエラー |
 | `--type` | 任意 | `tansho` / `fukusho` / `wide` / `umaren` / `umatan` / `sanrenpuku` / `sanrentan` | 対話で確認 |
 | `--budget` | 任意 | 整数（円） | 対話で確認 |
-| `--style` | 任意 | `favorite` / `balanced` / `longshot` | `balanced`（黙示）|
+| `--style` | 任意 | `favorite` / `balanced` / `longshot` | `balanced` |
 | `--axis` | 任意 | 馬番カンマ区切り | スキルが自動選定 |
 
 ### 3.3 対話モードのフロー
