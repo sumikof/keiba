@@ -106,6 +106,44 @@ def get_horse_profile(horse_id: str) -> dict:
     return profile
 
 
+def parse_race_row(row, headers: list[str]) -> dict:
+    """成績テーブルの 1 行をヘッダー名ベースでパースする"""
+    cells = row.find_all("td")
+    if not cells:
+        return {}
+
+    def get_by_header(name: str) -> str:
+        if name in headers:
+            idx = headers.index(name)
+            if idx < len(cells):
+                return cells[idx].get_text(strip=True)
+        return ""
+
+    return {
+        "date": get_by_header("日付"),
+        "venue": get_by_header("開催"),
+        "weather": get_by_header("天気"),
+        "race_num": get_by_header("R"),
+        "race_name": get_by_header("レース名"),
+        "head_count": get_by_header("頭数"),
+        "waku": get_by_header("枠番"),
+        "umaban": get_by_header("馬番"),
+        "odds": get_by_header("オッズ"),
+        "ninki": get_by_header("人気"),
+        "chakujun": get_by_header("着順"),
+        "jockey": get_by_header("騎手"),
+        "kinryo": get_by_header("斤量"),
+        "distance": get_by_header("距離"),
+        "baba": get_by_header("馬場"),
+        "time": get_by_header("タイム"),
+        "margin": get_by_header("着差"),
+        "passage": get_by_header("通過"),
+        "pace": get_by_header("ペース"),
+        "agari": get_by_header("上り"),
+        "weight": get_by_header("馬体重"),
+    }
+
+
 def get_horse_races(horse_id: str, max_races: int = 10) -> list[dict]:
     """馬の過去レース成績を取得"""
     url = f"https://db.netkeiba.com/horse/result/{horse_id}/"
@@ -116,7 +154,6 @@ def get_horse_races(horse_id: str, max_races: int = 10) -> list[dict]:
     soup = BeautifulSoup(resp.text, "lxml")
     races = []
 
-    # 成績テーブル
     race_table = soup.select_one("table.db_h_race_results, table.nk_tb_common")
     if not race_table:
         return races
@@ -124,37 +161,14 @@ def get_horse_races(horse_id: str, max_races: int = 10) -> list[dict]:
     headers_row = race_table.select_one("tr")
     col_names = [th.get_text(strip=True) for th in headers_row.select("th")] if headers_row else []
 
-    for row in race_table.select("tr.HorseRace, tr")[1:max_races + 1]:
-        cells = row.find_all("td")
-        if len(cells) < 5:
-            continue
-
-        race = {}
-        # カラム名に基づいてマッピング（フォールバックは位置ベース）
-        def get_cell(idx: int) -> str:
-            return cells[idx].get_text(strip=True) if idx < len(cells) else ""
-
-        race["date"] = get_cell(0)
-        race["venue"] = get_cell(1)
-        race["weather"] = get_cell(2)
-        race["race_num"] = get_cell(3)
-        race["race_name"] = get_cell(4)
-        race["head_count"] = get_cell(6)
-        race["waku"] = get_cell(7)
-        race["umaban"] = get_cell(8)
-        race["odds"] = get_cell(9)
-        race["ninki"] = get_cell(10)
-        race["chakujun"] = get_cell(11)
-        race["jockey"] = get_cell(12)
-        race["kinryo"] = get_cell(13)
-        race["course"] = get_cell(14)
-        race["time"] = get_cell(17) if len(cells) > 17 else get_cell(15)
-        race["margin"] = get_cell(18) if len(cells) > 18 else get_cell(16)
-
-        if race["date"]:
+    for row in race_table.select("tr")[1:]:
+        race = parse_race_row(row, col_names)
+        if race.get("date"):
             races.append(race)
+        if len(races) >= max_races:
+            break
 
-    return races[:max_races]
+    return races
 
 
 def print_horse_info(profile: dict, races: list[dict]):
@@ -184,15 +198,19 @@ def print_horse_info(profile: dict, races: list[dict]):
 
     if races:
         print(f"\n【近走成績（直近{len(races)}戦）】")
-        print(f"  {'日付':<12} {'競馬場':<6} {'レース名':<22} {'頭数':<4} {'枠':<3} {'馬番':<4} {'着順':<4} {'騎手':<10} {'斤量':<5} {'タイム':<10} {'着差':<6} {'人気':<4} オッズ")
-        print(f"  {'-'*100}")
+        print(f"  {'日付':<12} {'開催':<6} {'レース名':<20} {'頭数':<4} {'馬番':<4} "
+              f"{'人気':<4} {'着順':<4} {'距離':<6} {'馬場':<4} "
+              f"{'タイム':<8} {'着差':<6} {'通過':<10} {'上り':<5} {'ペース':<10}")
+        print(f"  {'-'*130}")
         for r in races:
             print(
-                f"  {r.get('date', ''):<12} {r.get('venue', ''):<6} {r.get('race_name', ''):<22} "
-                f"{r.get('head_count', ''):<4} {r.get('waku', ''):<3} {r.get('umaban', ''):<4} "
-                f"{r.get('chakujun', ''):<4} {r.get('jockey', ''):<10} {r.get('kinryo', ''):<5} "
-                f"{r.get('time', ''):<10} {r.get('margin', ''):<6} {r.get('ninki', ''):<4} "
-                f"{r.get('odds', '')}"
+                f"  {r.get('date', ''):<12} {r.get('venue', ''):<6} "
+                f"{r.get('race_name', ''):<20} {r.get('head_count', ''):<4} "
+                f"{r.get('umaban', ''):<4} {r.get('ninki', ''):<4} "
+                f"{r.get('chakujun', ''):<4} {r.get('distance', ''):<6} "
+                f"{r.get('baba', ''):<4} {r.get('time', ''):<8} "
+                f"{r.get('margin', ''):<6} {r.get('passage', ''):<10} "
+                f"{r.get('agari', ''):<5} {r.get('pace', ''):<10}"
             )
     else:
         print("\n過去成績が取得できませんでした。")
