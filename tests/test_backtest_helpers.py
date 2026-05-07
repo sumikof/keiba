@@ -222,3 +222,74 @@ def test_compute_race_pnl_skips_dead_heat():
     ], "payoffs": []}
     with pytest.raises(ValueError, match="同着"):
         compute_race_pnl(bets, None, result)
+
+
+from _backtest_helpers import aggregate_log
+
+
+def _make_log_row(**kwargs):
+    base = {
+        "race_id": "X", "race_date": "2026-04-01", "race_name": "テスト",
+        "bet_type": "sanrenpuku", "style": "balanced", "budget": "10000",
+        "total_invested": "10000", "total_payout": "5000",
+        "profit": "-5000", "roi": "0.50",
+    }
+    base.update(kwargs)
+    return base
+
+
+def test_aggregate_log_overall_two_races():
+    rows = [
+        _make_log_row(total_invested="10000", total_payout="7000",
+                      profit="-3000", roi="0.70"),
+        _make_log_row(total_invested="2000", total_payout="4000",
+                      profit="2000", roi="2.00"),
+    ]
+    agg = aggregate_log(rows)
+    assert agg["overall"]["races"] == 2
+    assert agg["overall"]["invested"] == 12000
+    assert agg["overall"]["payout"] == 11000
+    assert agg["overall"]["profit"] == -1000
+    assert agg["overall"]["roi"] == 0.92
+    assert agg["overall"]["hit_races"] == 1
+    assert agg["overall"]["hit_rate"] == 0.5
+
+
+def test_aggregate_log_by_bet_type():
+    rows = [
+        _make_log_row(bet_type="sanrenpuku", total_invested="10000",
+                      total_payout="7000", profit="-3000", roi="0.70"),
+        _make_log_row(bet_type="umaren", total_invested="2000",
+                      total_payout="4000", profit="2000", roi="2.00"),
+        _make_log_row(bet_type="umaren", total_invested="3000",
+                      total_payout="0", profit="-3000", roi="0.00"),
+    ]
+    agg = aggregate_log(rows)
+    assert agg["by_bet_type"]["sanrenpuku"]["races"] == 1
+    assert agg["by_bet_type"]["umaren"]["races"] == 2
+    assert agg["by_bet_type"]["umaren"]["invested"] == 5000
+    assert agg["by_bet_type"]["umaren"]["payout"] == 4000
+
+
+def test_aggregate_log_by_style():
+    rows = [
+        _make_log_row(style="balanced", total_invested="10000",
+                      total_payout="7000", profit="-3000", roi="0.70"),
+        _make_log_row(style="longshot", total_invested="2000",
+                      total_payout="4000", profit="2000", roi="2.00"),
+    ]
+    agg = aggregate_log(rows)
+    assert agg["by_style"]["balanced"]["races"] == 1
+    assert agg["by_style"]["longshot"]["races"] == 1
+    assert agg["by_style"]["longshot"]["profit"] == 2000
+
+
+def test_aggregate_log_empty():
+    """空リストでも落ちない"""
+    agg = aggregate_log([])
+    assert agg["overall"]["races"] == 0
+    assert agg["overall"]["invested"] == 0
+    assert agg["overall"]["roi"] == 0.0
+    assert agg["overall"]["hit_rate"] == 0.0
+    assert agg["by_bet_type"] == {}
+    assert agg["by_style"] == {}

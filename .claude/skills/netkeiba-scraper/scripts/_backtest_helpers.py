@@ -238,3 +238,48 @@ def compute_race_pnl(bets_json: dict, odds_json: dict | None,
         "winning_bets": winners,
         "losing_bets": losers,
     }
+
+
+def _summarize(rows: list[dict]) -> dict:
+    """1 グループの集計を返す。"""
+    races = len(rows)
+    invested = sum(int(r["total_invested"]) for r in rows)
+    payout = sum(int(r["total_payout"]) for r in rows)
+    profit = payout - invested
+    roi = round(payout / invested, 2) if invested else 0.0
+    hit_races = sum(1 for r in rows if int(r["profit"]) > 0)
+    hit_rate = round(hit_races / races, 2) if races else 0.0
+    return {
+        "races": races,
+        "invested": invested,
+        "payout": payout,
+        "profit": profit,
+        "roi": roi,
+        "hit_races": hit_races,
+        "hit_rate": hit_rate,
+    }
+
+
+def aggregate_log(log_rows: list[dict]) -> dict:
+    """
+    CSV ログ行から集計を計算する。
+
+    Args:
+        log_rows: 各行が race_id / race_date / bet_type / style /
+                  total_invested / total_payout / profit / roi 等のキーを持つ dict
+
+    Returns:
+        {"overall": {...}, "by_bet_type": {...}, "by_style": {...}}
+    """
+    by_bet_type: dict[str, list[dict]] = {}
+    by_style: dict[str, list[dict]] = {}
+
+    for row in log_rows:
+        by_bet_type.setdefault(row["bet_type"], []).append(row)
+        by_style.setdefault(row["style"], []).append(row)
+
+    return {
+        "overall": _summarize(log_rows),
+        "by_bet_type": {k: _summarize(v) for k, v in by_bet_type.items()},
+        "by_style": {k: _summarize(v) for k, v in by_style.items()},
+    }
