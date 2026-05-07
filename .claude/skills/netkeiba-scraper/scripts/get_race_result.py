@@ -45,38 +45,42 @@ def get_race_result(race_id: str) -> dict:
     data02 = soup.select_one(".RaceData02")
     result["race_info"]["meta"] = " ".join(data02.get_text(" ", strip=True).split()) if data02 else "-"
 
-    # 着順テーブル
-    result_table = soup.select_one(".RaceResultTable, table.nk_tb_common")
-    if result_table:
-        for row in result_table.select("tr.HorseList, tr")[1:]:
-            cells = row.find_all("td")
-            if len(cells) < 6:
-                continue
+    # 着順テーブル - 行を直接拾う方式（unambiguous）
+    horse_rows = soup.select("tr.HorseList")
+    for row in horse_rows:
+        cells = row.find_all("td")
+        if len(cells) < 6:
+            continue
 
-            def gc(idx: int) -> str:
-                return cells[idx].get_text(strip=True) if idx < len(cells) else ""
+        def gc(idx: int) -> str:
+            return cells[idx].get_text(strip=True) if idx < len(cells) else ""
 
-            horse = {
-                "chakujun": gc(0),
-                "waku": gc(1),
-                "umaban": gc(2),
-                "horse_name": gc(3),
-                "seireii": gc(4),
-                "kinryo": gc(5),
-                "jockey": gc(6),
-                "time": gc(7),
-                "margin": gc(8),
-                "ninki": gc(10) if len(cells) > 10 else "",
-                "odds": gc(11) if len(cells) > 11 else "",
-                "trainer": gc(13) if len(cells) > 13 else "",
-                "weight": gc(14) if len(cells) > 14 else "",
-            }
-            # 着順が数字か「取」「除」「失」「中」などの場合のみ追加
-            if horse["chakujun"] and (horse["chakujun"].isdigit() or horse["chakujun"] in ("取", "除", "失", "中")):
-                result["results"].append(horse)
+        horse = {
+            "chakujun": gc(0),
+            "waku": gc(1),
+            "umaban": gc(2),
+            "horse_name": gc(3),
+            "seireii": gc(4),
+            "kinryo": gc(5),
+            "jockey": gc(6),
+            "time": gc(7),
+            "margin": gc(8),
+            "ninki": gc(9) if len(cells) > 9 else "",
+            "odds": gc(10) if len(cells) > 10 else "",
+            "trainer": gc(13) if len(cells) > 13 else "",
+            "weight": gc(14) if len(cells) > 14 else "",
+        }
+        # 着順が数字か「取」「除」「失」「中」などの場合のみ追加
+        if horse["chakujun"] and (horse["chakujun"].isdigit() or horse["chakujun"] in ("取", "除", "失", "中")):
+            result["results"].append(horse)
 
     # 払戻テーブル
-    payoff_tables = soup.select(".PaybackList, .ResultPayment, table.pay_block")
+    # 順序保持券種は馬番を "→"、それ以外は "-" で連結する
+    ORDERED_TICKETS = {"馬単", "3連単", "三連単"}
+
+    payoff_tables = soup.select(
+        ".PaybackList, .ResultPayment, table.pay_block, table.Payout_Detail_Table"
+    )
     for table in payoff_tables:
         for row in table.select("tr"):
             ticket_elem = row.select_one("th, .Ticket")
@@ -86,20 +90,106 @@ def get_race_result(race_id: str) -> dict:
             if not ticket:
                 continue
 
-            nums_elem = row.select_one(".Num, .HorseNums")
-            nums = nums_elem.get_text(strip=True) if nums_elem else ""
+            # td.Result から組み合わせを抽出
+            # 構造1（単勝・複勝）: <div><span>N</span></div> が複数並ぶ
+            # 構造2（連勝系）: <ul><li><span>N</span></li>...</ul> が組合せ単位で並ぶ
+            nums_elem = (
+                row.select_one("td.Result")
+                or row.select_one(".Num")
+                or row.select_one(".HorseNums")
+            )
+            combos: list[str] = []
+            if nums_elem is not None:
+                # 構造2: <ul> 要素が連勝の組合せ単位
+                uls = nums_elem.find_all("ul")
+                if uls:
+                    sep = "→" if ticket in ORDERED_TICKETS else "-"
+                    for ul in uls:
+                        nums_in_combo = []
+                        for li in ul.find_all("li"):
+                            t = li.get_text(strip=True)
+                            if t:
+                                nums_in_combo.append(t)
+                        if nums_in_combo:
+                            combos.append(sep.join(nums_in_combo))
+                else:
+                    # 構造1: <div> 要素を連続グループとしてまとめる
+                    # 単勝なら 1 馬番 / 複勝なら N 馬番 (空 div は区切りを示すケースもある)
+                    divs = nums_elem.find_all("div", recursive=False)
+                    if divs:
+                        # 各 div は 1 馬番。複勝では 3 つの馬番（1着馬・2着馬・3着馬の複勝）が
+                        # 連続するため、空でない順に取り出してそれぞれ単独の組合せにする
+                        nonempty = [d.get_text(strip=True) for d in divs]
+                        nonempty = [n for n in nonempty if n]
+                        # 単勝/複勝はいずれも 1 馬番ずつのため、各馬番を独立した combo として扱う
+                        if ticket in ("単勝",):
+                            if nonempty:
+                                combos.append(nonempty[0])
+                        else:
+                            for n in nonempty:
+                                combos.append(n)
+                    else:
+                        # フォールバック: テキスト全体を空白区切り
+                        text = nums_elem.get_text(" ", strip=True)
+                        nums_split = text.split()
+                        if nums_split:
+                            sep = "→" if ticket in ORDERED_TICKETS else "-"
+                            combos.append(sep.join(nums_split))
 
-            payback_elem = row.select_one(".Odds, .Payback, td:nth-child(2)")
-            payback = payback_elem.get_text(strip=True) if payback_elem else ""
+            # td.Payout から金額（複数あれば <br> 区切り）
+            payback_elem = (
+                row.select_one("td.Payout")
+                or row.select_one(".Payback")
+                or row.select_one(".Odds")
+                or row.select_one("td:nth-child(2)")
+            )
+            amounts: list[int] = []
+            payback_raw = ""
+            if payback_elem is not None:
+                # <br> を改行に置換してから分解
+                for br in payback_elem.find_all("br"):
+                    br.replace_with("\n")
+                payback_raw = payback_elem.get_text("\n", strip=True)
+                for chunk in payback_raw.split("\n"):
+                    chunk = chunk.strip()
+                    if not chunk:
+                        continue
+                    digits = "".join(ch for ch in chunk if ch.isdigit())
+                    if digits:
+                        amounts.append(int(digits))
 
-            ninki_elem = row.select_one(".Ninki, .Favorite, td:nth-child(3)")
-            ninki = ninki_elem.get_text(strip=True) if ninki_elem else ""
+            # td.Ninki から人気（複数あれば <br>/<span> 区切り）
+            ninki_elem = (
+                row.select_one("td.Ninki")
+                or row.select_one(".Favorite")
+                or row.select_one("td:nth-child(3)")
+            )
+            ninkis: list[str] = []
+            if ninki_elem is not None:
+                spans = ninki_elem.find_all("span")
+                if spans:
+                    for sp in spans:
+                        t = sp.get_text(strip=True)
+                        if t:
+                            ninkis.append(t)
+                else:
+                    text = ninki_elem.get_text(" ", strip=True)
+                    ninkis = text.split()
 
-            if ticket and payback:
+            # combos と amounts をペアにして emit
+            n = max(len(combos), len(amounts))
+            for i in range(n):
+                combo = combos[i] if i < len(combos) else ""
+                amt = amounts[i] if i < len(amounts) else 0
+                ninki = ninkis[i] if i < len(ninkis) else ""
+                if not combo and not amt:
+                    continue
                 result["payoffs"].append({
                     "ticket": ticket,
-                    "nums": nums,
-                    "payback": payback,
+                    "nums": combo,
+                    "amount": amt,
+                    # 後方互換: payback は表示用文字列
+                    "payback": f"{amt:,}円" if amt else payback_raw,
                     "ninki": ninki,
                 })
 
