@@ -102,3 +102,46 @@ def test_is_winning_bet_sanrenpuku_miss():
 def test_is_winning_bet_sanrentan_order_matters():
     assert is_winning_bet("7→12→3", "sanrentan", RESULT_7_12_3) is True
     assert is_winning_bet("3→12→7", "sanrentan", RESULT_7_12_3) is False
+
+
+from _backtest_helpers import compute_payout
+
+
+def test_compute_payout_miss_returns_zero():
+    """外れなら 0 円"""
+    bet = {"combination": "9", "amount": 1000, "bet_type": "tansho"}
+    assert compute_payout(bet, None, [7, 12, 3], []) == 0
+
+
+def test_compute_payout_uses_odds_snapshot_when_available():
+    """オッズスナップがあれば amount × odds で計算"""
+    bet = {"combination": "7", "amount": 1000, "bet_type": "tansho"}
+    odds = {"tansho": [{"num": "7", "odds": "2.4"}]}
+    assert compute_payout(bet, odds, [7, 12, 3], []) == 2400
+
+
+def test_compute_payout_uses_payoffs_when_no_odds():
+    """オッズスナップなしなら払戻金（100 円当たり）をスケール"""
+    bet = {"combination": "7", "amount": 600, "bet_type": "tansho"}
+    payoffs = [{"ticket": "単勝", "nums": "7", "amount": 240}]
+    assert compute_payout(bet, None, [7, 12, 3], payoffs) == 1440
+
+
+def test_compute_payout_wide_uses_lower_bound():
+    """ワイドの範囲オッズは下限を採用"""
+    bet = {"combination": "7-12", "amount": 1000, "bet_type": "wide"}
+    odds = {"wide": [{"combination": "7-12", "odds_low": "3.2", "odds_high": "4.5"}]}
+    assert compute_payout(bet, odds, [7, 12, 3], []) == 3200
+
+
+def test_compute_payout_sanrenpuku_combination_normalized():
+    """三連複オッズ検索時に combination を正規化（順不同で一致）"""
+    bet = {"combination": "12-7-3", "amount": 600, "bet_type": "sanrenpuku"}
+    odds = {"sanrenpuku": [{"combination": "3-7-12", "odds": "12.4"}]}
+    assert compute_payout(bet, odds, [7, 12, 3], []) == 7440
+
+
+def test_compute_payout_no_match_returns_zero_with_warning_data():
+    """当たりなのにオッズも払戻もない場合は 0 円（データ不整合）"""
+    bet = {"combination": "7", "amount": 1000, "bet_type": "tansho"}
+    assert compute_payout(bet, {"tansho": []}, [7, 12, 3], []) == 0

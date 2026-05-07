@@ -81,3 +81,84 @@ def is_winning_bet(combination: str, bet_type: str, result: list[int]) -> bool:
         return parsed == (first, second, third)
 
     return False
+
+
+def _normalize_combination_for_lookup(combination: str, bet_type: str) -> str:
+    """オッズ検索キーとして使える正規化文字列を返す。"""
+    if bet_type in _SINGLE_HORSE_TYPES:
+        return combination
+    parsed = parse_combination(combination, bet_type)
+    if bet_type in _ORDERED_TYPES:
+        return "→".join(str(n) for n in parsed)
+    return "-".join(str(n) for n in parsed)
+
+
+def _payoff_ticket_label(bet_type: str) -> str:
+    """payoffs テーブルでの日本語チケット名"""
+    return {
+        "tansho": "単勝",
+        "fukusho": "複勝",
+        "wide": "ワイド",
+        "umaren": "馬連",
+        "umatan": "馬単",
+        "sanrenpuku": "3連複",
+        "sanrentan": "3連単",
+    }[bet_type]
+
+
+def compute_payout(bet: dict, odds_snapshot: dict | None,
+                   result: list[int], payoffs: list[dict]) -> int:
+    """
+    1 つの買い目の払戻額を計算する。
+
+    優先順位:
+      1. 当たりでなければ 0 円
+      2. odds_snapshot に該当倍率があれば amount × 倍率
+      3. なければ payoffs（100 円当たり）を用いて amount/100 × 払戻金
+
+    Args:
+        bet: {"combination", "amount", "bet_type"}
+        odds_snapshot: snapshot_odds.py が保存した辞書、または None
+        result: [1着, 2着, 3着] の馬番リスト
+        payoffs: get_race_result.py の払戻金リスト
+
+    Returns:
+        払戻額（整数円）
+    """
+    bet_type = bet["bet_type"]
+    combo = bet["combination"]
+    amount = int(bet["amount"])
+
+    if not is_winning_bet(combo, bet_type, result):
+        return 0
+
+    # オッズスナップから探す
+    if odds_snapshot:
+        normalized = _normalize_combination_for_lookup(combo, bet_type)
+        for entry in odds_snapshot.get(bet_type, []):
+            if bet_type in _SINGLE_HORSE_TYPES:
+                key = entry.get("num", "")
+            else:
+                key = entry.get("combination", "")
+            if key == normalized:
+                odds_str = entry.get("odds_low") or entry.get("odds")
+                try:
+                    return int(amount * float(odds_str))
+                except (TypeError, ValueError):
+                    pass
+
+    # 払戻金からフォールバック
+    label = _payoff_ticket_label(bet_type)
+    for p in payoffs:
+        if p.get("ticket") != label:
+            continue
+        try:
+            payoff_combo = parse_combination(p["nums"], bet_type)
+            bet_combo = parse_combination(combo, bet_type)
+            if payoff_combo == bet_combo:
+                payback = int(p["amount"])
+                return amount * payback // 100
+        except (ValueError, KeyError):
+            continue
+
+    return 0
