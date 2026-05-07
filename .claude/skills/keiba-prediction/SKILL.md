@@ -184,6 +184,47 @@ allocate_budget(10000, {"main": 0.70, "sub": 0.15, "dark_horse": 0.15})
 
 `reports/` ディレクトリに過去レポートが存在する場合、それを参考フォーマットとして利用してよい。
 
+### バックテスト用 JSON の並置出力（必須）
+
+Markdown と同時に `reports/yyyymmdd_<レース名>.json` に **機械可読な買い目データ** を必ず出力する。後続の `/keiba-result` `/keiba-backtest-summary` がこの JSON を入力として使う。
+
+JSON のスキーマ:
+
+```json
+{
+  "race_id": "202608030411",
+  "race_name": "天皇賞(春)",
+  "race_date": "2026-05-03",
+  "venue": "京都",
+  "course": "芝3200m",
+  "bet_type": "sanrenpuku",
+  "style": "balanced",
+  "budget": 10000,
+  "axis_horses": [7],
+  "predicted_odds": {
+    "tansho": [{"num": "1", "odds": "23.4"}],
+    "sanrenpuku": [{"combination": "1-3-5", "odds": "45.6"}]
+  },
+  "bets": [
+    {"combination": "7-3-12", "amount": 600, "category": "main"},
+    {"combination": "7-3-1",  "amount": 400, "category": "dark_horse"}
+  ],
+  "total_amount": 10000,
+  "generated_at": "2026-05-03T08:30:00+09:00"
+}
+```
+
+`combination` の規約:
+- 単勝・複勝: `"7"`（単一馬番）
+- ワイド・馬連・三連複: `"1-3-5"` （`-` 区切り、ソート済み馬番）
+- 馬単・三連単: `"1→3→5"` （`→` 区切り、順序保持）
+
+`category` は `main` / `sub` / `dark_horse`（戦略ファイルで定義された比重ブロック）。
+
+`predicted_odds` には予想時点で取得できたオッズを入れる（参考値）。確定オッズは別途 `snapshot_odds.py` で取得する。
+
+`generated_at` は JST タイムゾーン (`+09:00`) で出力する。
+
 ---
 
 ## 馬券種別の戦略ファイル
