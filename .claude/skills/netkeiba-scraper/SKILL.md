@@ -29,6 +29,7 @@ pip install requests beautifulsoup4 pandas lxml
 | オッズを取得 | `get_odds.py` | `python ./scripts/get_odds.py 202501010101` |
 | 出走馬のプロフィール・成績 | `get_horse_info.py` | `python ./scripts/get_horse_info.py 2020104753` |
 | レース結果・着順・払戻 | `get_race_result.py` | `python ./scripts/get_race_result.py 202501010101` |
+| 発走直前オッズのスナップショット保存 | `snapshot_odds.py` | `python ./scripts/snapshot_odds.py 202608030411` |
 
 ## レースIDの形式
 
@@ -101,6 +102,20 @@ python ./scripts/get_race_result.py 202501010101
 ```
 
 出力: 着順、枠番、馬番、馬名、タイム、着差、騎手、斤量、人気、オッズ、払戻金情報
+
+### オッズスナップショット保存（snapshot_odds.py）
+
+```bash
+# race_id を指定（reports/ 内の予想 JSON から basename 自動検出）
+python3 ./scripts/snapshot_odds.py 202608030411
+
+# basename を明示
+python3 ./scripts/snapshot_odds.py --basename 20260503_天皇賞春 202608030411
+```
+
+出力: `reports/<basename>.odds.json`（全 7 馬券種のオッズを含む）
+
+発走後はオッズが消えるため、**発走 5〜10 分前** にスナップ保存することがバックテストの精度に直結する。
 
 ## 注意事項
 
