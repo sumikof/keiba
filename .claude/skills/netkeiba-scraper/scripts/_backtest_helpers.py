@@ -162,3 +162,79 @@ def compute_payout(bet: dict, odds_snapshot: dict | None,
             continue
 
     return 0
+
+
+def _extract_top3(result: dict) -> list[int]:
+    """着順テーブルから 1-3 着の馬番を取り出す（同着あれば ValueError）。"""
+    top3 = []
+    seen_chakujun = set()
+    for r in result.get("results", []):
+        try:
+            chakujun = int(r["chakujun"])
+        except (ValueError, KeyError):
+            continue
+        if chakujun > 3:
+            continue
+        if chakujun in seen_chakujun:
+            raise ValueError(f"同着のため集計不可: {chakujun} 着")
+        seen_chakujun.add(chakujun)
+        try:
+            top3.append((chakujun, int(r["umaban"])))
+        except (ValueError, KeyError):
+            continue
+    if len(top3) < 3:
+        raise ValueError("1-3 着の着順が揃っていません")
+    top3.sort(key=lambda x: x[0])
+    return [t[1] for t in top3]
+
+
+def compute_race_pnl(bets_json: dict, odds_json: dict | None,
+                     result: dict) -> dict:
+    """
+    1 レースの損益を計算する。
+
+    Args:
+        bets_json: 買い目 JSON の辞書（"bet_type", "bets" を含む）
+        odds_json: オッズスナップの辞書、または None
+        result: get_race_result.py の出力（"results", "payoffs"）
+
+    Returns:
+        {"total_invested", "total_payout", "profit", "roi",
+         "winning_bets", "losing_bets"}
+
+    Raises:
+        ValueError: 同着で 1-3 着が判定できない場合
+    """
+    top3 = _extract_top3(result)
+    bet_type = bets_json["bet_type"]
+    payoffs = result.get("payoffs", [])
+
+    total_invested = 0
+    total_payout = 0
+    winners: list[dict] = []
+    losers: list[dict] = []
+
+    for raw in bets_json.get("bets", []):
+        bet = {"combination": raw["combination"],
+               "amount": raw["amount"],
+               "bet_type": bet_type}
+        total_invested += int(raw["amount"])
+        payout = compute_payout(bet, odds_json, top3, payoffs)
+        total_payout += payout
+        record = {**raw, "payout": payout}
+        if payout > 0:
+            winners.append(record)
+        else:
+            losers.append(record)
+
+    roi = round(total_payout / total_invested, 2) if total_invested else 0.0
+    profit = total_payout - total_invested
+
+    return {
+        "total_invested": total_invested,
+        "total_payout": total_payout,
+        "profit": profit,
+        "roi": roi,
+        "winning_bets": winners,
+        "losing_bets": losers,
+    }

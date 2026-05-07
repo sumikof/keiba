@@ -145,3 +145,80 @@ def test_compute_payout_no_match_returns_zero_with_warning_data():
     """当たりなのにオッズも払戻もない場合は 0 円（データ不整合）"""
     bet = {"combination": "7", "amount": 1000, "bet_type": "tansho"}
     assert compute_payout(bet, {"tansho": []}, [7, 12, 3], []) == 0
+
+
+from _backtest_helpers import compute_race_pnl
+
+
+def _make_bets_json(bet_type, bets):
+    return {"race_id": "X", "bet_type": bet_type, "budget": 10000, "bets": bets}
+
+
+def test_compute_race_pnl_all_miss():
+    """全外れ"""
+    bets = _make_bets_json("tansho", [
+        {"combination": "9", "amount": 500},
+        {"combination": "11", "amount": 500},
+    ])
+    result = {"results": [
+        {"chakujun": "1", "umaban": "7"},
+        {"chakujun": "2", "umaban": "12"},
+        {"chakujun": "3", "umaban": "3"},
+    ], "payoffs": []}
+    pnl = compute_race_pnl(bets, None, result)
+    assert pnl["total_invested"] == 1000
+    assert pnl["total_payout"] == 0
+    assert pnl["profit"] == -1000
+    assert pnl["roi"] == 0.0
+    assert len(pnl["winning_bets"]) == 0
+    assert len(pnl["losing_bets"]) == 2
+
+
+def test_compute_race_pnl_one_hit_with_odds():
+    """1 点的中（オッズスナップ使用）"""
+    bets = _make_bets_json("sanrenpuku", [
+        {"combination": "7-12-3", "amount": 600},
+        {"combination": "7-12-1", "amount": 400},
+    ])
+    odds = {"sanrenpuku": [{"combination": "3-7-12", "odds": "12.4"}]}
+    result = {"results": [
+        {"chakujun": "1", "umaban": "7"},
+        {"chakujun": "2", "umaban": "12"},
+        {"chakujun": "3", "umaban": "3"},
+    ], "payoffs": []}
+    pnl = compute_race_pnl(bets, odds, result)
+    assert pnl["total_invested"] == 1000
+    assert pnl["total_payout"] == 7440
+    assert pnl["profit"] == 6440
+    assert pnl["roi"] == 7.44
+    assert len(pnl["winning_bets"]) == 1
+    assert len(pnl["losing_bets"]) == 1
+
+
+def test_compute_race_pnl_uses_payoffs_when_no_odds():
+    """オッズ無 → 払戻金フォールバック"""
+    bets = _make_bets_json("tansho", [{"combination": "7", "amount": 1000}])
+    payoffs = [{"ticket": "単勝", "nums": "7", "amount": 240}]
+    result = {"results": [
+        {"chakujun": "1", "umaban": "7"},
+        {"chakujun": "2", "umaban": "12"},
+        {"chakujun": "3", "umaban": "3"},
+    ], "payoffs": payoffs}
+    pnl = compute_race_pnl(bets, None, result)
+    assert pnl["total_invested"] == 1000
+    assert pnl["total_payout"] == 2400
+    assert pnl["profit"] == 1400
+    assert pnl["roi"] == 2.4
+
+
+def test_compute_race_pnl_skips_dead_heat():
+    """同着で 1-3 着が 4 件以上 → ValueError"""
+    bets = _make_bets_json("tansho", [{"combination": "7", "amount": 1000}])
+    result = {"results": [
+        {"chakujun": "1", "umaban": "7"},
+        {"chakujun": "2", "umaban": "12"},
+        {"chakujun": "2", "umaban": "5"},  # 2 着同着
+        {"chakujun": "3", "umaban": "3"},
+    ], "payoffs": []}
+    with pytest.raises(ValueError, match="同着"):
+        compute_race_pnl(bets, None, result)
