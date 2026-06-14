@@ -59,7 +59,7 @@ python3 .claude/skills/netkeiba-scraper/scripts/get_race_list.py
 - レース ID
 - 馬券種・予算・スタイル・軸馬指定
 
-スキル側で 8 段階の予想プロセスが実行され、`reports/yyyymmdd_<レース名>.md` にレポートが出力される。
+スキル側で 8 段階の予想プロセスが実行され、`reports/yyyymmdd_<レース名>.md`（レポート）・`.json`（買い目）・`.odds.json`（予想時点の全馬券種オッズ）が `reports/` に出力される。`.odds.json` はバックテストの払戻計算に使われる。
 
 ### 5. 出力確認
 
