@@ -12,6 +12,7 @@ import sys
 import argparse
 import time
 import requests
+from datetime import datetime, timezone, timedelta
 
 
 HEADERS = {
@@ -21,6 +22,8 @@ HEADERS = {
         "Chrome/120.0.0.0 Safari/537.36"
     )
 }
+
+JST = timezone(timedelta(hours=9))
 
 # 馬券種 type_param（HTML時代の b1/b4...）→ JSON API の type 番号
 _TYPE_PARAM_TO_API = {"b1": 1, "b4": 4, "b5": 5, "b6": 6, "b7": 7, "b8": 8}
@@ -146,6 +149,71 @@ def fetch_sanren_odds(race_id: str, type_param: str, head_count: int = 18) -> li
     """3連複・3連単オッズを JSON API から取得（1リクエストで全通り）"""
     api_type = _TYPE_PARAM_TO_API[type_param]
     return parse_sanren(_fetch_api_json(race_id, api_type), str(api_type))
+
+
+def _assemble_snapshot(race_id, snapshot_at, odds_status, tf,
+                       umaren_rows, wide_rows, umatan_rows,
+                       sanrenpuku_rows, sanrentan_rows) -> dict:
+    """各馬券種の行データを .odds.json スキーマの dict に集約する純関数。"""
+    return {
+        "race_id": race_id,
+        "snapshot_at": snapshot_at,
+        "odds_status": odds_status,
+        "tansho": tf.get("tansho", []),
+        "fukusho": tf.get("fukusho", []),
+        "umaren": [
+            {"combination": f"{r[0]}-{r[1]}", "odds": r[2]} for r in umaren_rows
+        ],
+        "wide": [
+            {"combination": f"{r[0]}-{r[1]}", "odds_low": r[2], "odds_high": r[2]}
+            for r in wide_rows
+        ],
+        "umatan": [
+            {"combination": f"{r[0]}→{r[1]}", "odds": r[2]} for r in umatan_rows
+        ],
+        "sanrenpuku": [
+            {"combination": f"{r[0]}-{r[1]}-{r[2]}", "odds": r[3]}
+            for r in sanrenpuku_rows
+        ],
+        "sanrentan": [
+            {"combination": f"{r[0]}→{r[1]}→{r[2]}", "odds": r[3]}
+            for r in sanrentan_rows
+        ],
+    }
+
+
+def fetch_all_odds(race_id: str, head_count: int = 18) -> dict:
+    """全7馬券種のオッズを JSON API から取得し snapshot dict を返す。
+
+    odds_status は単勝・複勝(type=1)レスポンスの status を採用する。
+    head_count は後方互換のため残すが未使用。
+    """
+    tan_json = _fetch_api_json(race_id, 1)
+    odds_status = tan_json.get("status", "")
+    tf = parse_tansho_fukusho(tan_json)
+    time.sleep(0.5)
+
+    umaren_rows = fetch_combined_odds(race_id, "b4")
+    time.sleep(0.5)
+    wide_rows = fetch_combined_odds(race_id, "b5")
+    time.sleep(0.5)
+    umatan_rows = fetch_combined_odds(race_id, "b6")
+    time.sleep(0.5)
+    sanrenpuku_rows = fetch_sanren_odds(race_id, "b7")
+    time.sleep(0.5)
+    sanrentan_rows = fetch_sanren_odds(race_id, "b8")
+
+    return _assemble_snapshot(
+        race_id=race_id,
+        snapshot_at=datetime.now(JST).isoformat(),
+        odds_status=odds_status,
+        tf=tf,
+        umaren_rows=umaren_rows,
+        wide_rows=wide_rows,
+        umatan_rows=umatan_rows,
+        sanrenpuku_rows=sanrenpuku_rows,
+        sanrentan_rows=sanrentan_rows,
+    )
 
 
 def print_tansho_fukusho(race_id: str):

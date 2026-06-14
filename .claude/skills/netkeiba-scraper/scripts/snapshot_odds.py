@@ -17,14 +17,9 @@ import sys
 import os
 import json
 import glob
-import time
 import argparse
-from datetime import datetime, timezone, timedelta
 
 import get_odds
-
-
-JST = timezone(timedelta(hours=9))
 
 
 def find_basename_from_reports(race_id: str, reports_dir: str) -> str | None:
@@ -41,55 +36,6 @@ def find_basename_from_reports(race_id: str, reports_dir: str) -> str | None:
         except (json.JSONDecodeError, OSError):
             continue
     return None
-
-
-def fetch_all_odds(race_id: str, head_count: int = 18) -> dict:
-    """全馬券種のオッズを取得して 1 つの dict に集約する"""
-    snapshot = {
-        "race_id": race_id,
-        "snapshot_at": datetime.now(JST).isoformat(),
-    }
-
-    # 単勝・複勝
-    tf = get_odds.fetch_tansho_fukusho(race_id)
-    snapshot["tansho"] = tf.get("tansho", [])
-    snapshot["fukusho"] = tf.get("fukusho", [])
-    time.sleep(0.5)
-
-    # 馬連 (b4) / ワイド (b5) / 馬単 (b6)
-    for bet_key, type_param in [("umaren", "b4"), ("wide", "b5"), ("umatan", "b6")]:
-        rows = get_odds.fetch_combined_odds(race_id, type_param)
-        if bet_key == "wide":
-            snapshot[bet_key] = [
-                {"combination": f"{r[0]}-{r[1]}", "odds_low": r[2], "odds_high": r[2]}
-                for r in rows
-            ]
-        elif bet_key == "umatan":
-            snapshot[bet_key] = [
-                {"combination": f"{r[0]}→{r[1]}", "odds": r[2]}
-                for r in rows
-            ]
-        else:  # umaren
-            snapshot[bet_key] = [
-                {"combination": f"{r[0]}-{r[1]}", "odds": r[2]}
-                for r in rows
-            ]
-        time.sleep(0.5)
-
-    # 三連複 (b7)
-    rows = get_odds.fetch_sanren_odds(race_id, "b7", head_count)
-    snapshot["sanrenpuku"] = [
-        {"combination": f"{r[0]}-{r[1]}-{r[2]}", "odds": r[3]} for r in rows
-    ]
-    time.sleep(0.5)
-
-    # 三連単 (b8)
-    rows = get_odds.fetch_sanren_odds(race_id, "b8", head_count)
-    snapshot["sanrentan"] = [
-        {"combination": f"{r[0]}→{r[1]}→{r[2]}", "odds": r[3]} for r in rows
-    ]
-
-    return snapshot
 
 
 def main():
@@ -115,7 +61,7 @@ def main():
         print(f"basename を予想 JSON から取得: {basename}")
 
     print(f"オッズを取得中... (race_id: {args.race_id})")
-    snapshot = fetch_all_odds(args.race_id, args.head_count)
+    snapshot = get_odds.fetch_all_odds(args.race_id, args.head_count)
 
     os.makedirs(args.reports_dir, exist_ok=True)
     out_path = os.path.join(args.reports_dir, f"{basename}.odds.json")
