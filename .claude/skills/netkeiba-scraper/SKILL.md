@@ -83,6 +83,8 @@ python ./scripts/get_odds.py 202501010101 --type sanrenpuku
 
 対応馬券: `tansho`（単勝）, `fukusho`（複勝）, `umaren`（馬連）, `umatan`（馬単）, `wide`（ワイド）, `sanrenpuku`（3連複）, `sanrentan`（3連単）
 
+オッズは netkeiba の JSON API（`api_get_jra_odds.html`）から取得する。発売中は暫定オッズ（`status: middle`）、確定後は `status: result` が返り、いずれも実数で取得できる。三連複・三連単も 1 リクエストで全通り取得する。
+
 ### 出走馬情報（get_horse_info.py）
 
 ```bash
@@ -115,11 +117,11 @@ python3 ./scripts/snapshot_odds.py --basename 20260503_天皇賞春 202608030411
 
 出力: `reports/<basename>.odds.json`（全 7 馬券種のオッズを含む）
 
-発走後はオッズが消えるため、**発走 5〜10 分前** にスナップ保存することがバックテストの精度に直結する。
+`/keiba` 予想時に予想時点オッズが自動保存されるため、通常このスクリプトを手動実行する必要はない。より発走に近いオッズで `.odds.json` を上書きしたい場合の任意手段として使う。出力 `.odds.json` には `odds_status` が含まれる。
 
 ## 注意事項
 
 - スクレイピングは節度をもって使用すること（連続リクエスト時は自動で1秒待機）
 - netkeibaはログインなしでも基本情報は取得可能
-- オッズはリアルタイムで変動するため、発走直前が最終オッズ
+- オッズはリアルタイムで変動する。`get_odds.py` / `snapshot_odds.py` の出力 `odds_status` で `middle`（暫定）か `result`（確定）かを判別できる
 - 馬IDはdb.netkeiba.comの馬ページURLから確認できる（例: `https://db.netkeiba.com/horse/2020104753/`）
