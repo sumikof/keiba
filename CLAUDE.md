@@ -20,10 +20,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 1. **予想**: ユーザは `/keiba <レース名> [--type ...] [--budget ...] [--style ...] [--axis ...]` で起動する
    - `/keiba` が 8 段階の予想プロセスを実行
-   - `reports/yyyymmdd_<レース名>.md` (人間用) と `.json` (機械用) を並置出力
-2. **直前オッズスナップショット**: 発走 5〜10 分前に `python3 .claude/skills/netkeiba-scraper/scripts/snapshot_odds.py <race_id>` を実行
-   - 全 7 馬券種の確定オッズを `reports/yyyymmdd_<レース名>.odds.json` に保存
-   - **発走後はオッズが消えるためこのタイミングが必須**
+   - `reports/yyyymmdd_<レース名>.md` (人間用)・`.json` (機械用)・`.odds.json` (予想時点の全馬券種オッズ) を並置出力
+2. **（任意）直前オッズで上書き**: `/keiba` 予想時に `.odds.json` が自動生成されるため通常は不要。より発走に近いオッズで上書きしたい場合のみ `python3 .claude/skills/netkeiba-scraper/scripts/snapshot_odds.py <race_id>` を実行
+   - 全 7 馬券種のオッズ（`odds_status` 付き）を `reports/yyyymmdd_<レース名>.odds.json` に保存
 3. **結果照合**: レース後 `/keiba-result <race_id>` を実行
    - 着順・払戻金を取得し損益を計算
    - 該当 Markdown に「## 実績」章を追記
