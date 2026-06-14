@@ -12,7 +12,7 @@ import sys
 import argparse
 import time
 import requests
-from bs4 import BeautifulSoup
+from datetime import datetime, timezone, timedelta
 
 
 HEADERS = {
@@ -22,6 +22,27 @@ HEADERS = {
         "Chrome/120.0.0.0 Safari/537.36"
     )
 }
+
+JST = timezone(timedelta(hours=9))
+
+# 馬券種 type_param（HTML時代の b1/b4...）→ JSON API の type 番号
+_TYPE_PARAM_TO_API = {"b1": 1, "b4": 4, "b5": 5, "b6": 6, "b7": 7, "b8": 8}
+
+
+def _fetch_api_json(race_id: str, api_type: int) -> dict:
+    """netkeiba のオッズ JSON API を叩いて dict を返す。"""
+    url = (
+        "https://race.netkeiba.com/api/api_get_jra_odds.html"
+        f"?race_id={race_id}&type={api_type}&action=update"
+    )
+    headers = dict(HEADERS)
+    headers["Referer"] = (
+        f"https://race.netkeiba.com/odds/index.html?race_id={race_id}"
+    )
+    resp = requests.get(url, headers=headers, timeout=15)
+    resp.raise_for_status()
+    data = resp.json()
+    return data if isinstance(data, dict) else {}
 
 # 馬券種別とパラメータのマッピング
 ODDS_TYPES = {
@@ -35,160 +56,164 @@ ODDS_TYPES = {
 }
 
 
-def _fetch_soup(race_id: str, type_param: str) -> BeautifulSoup:
-    """オッズページのHTMLを取得してBeautifulSoupを返す"""
-    url = f"https://race.netkeiba.com/odds/index.html?race_id={race_id}&type={type_param}"
-    resp = requests.get(url, headers=HEADERS, timeout=15)
-    resp.raise_for_status()
-    resp.encoding = "EUC-JP"
-    return BeautifulSoup(resp.text, "lxml")
+def _odds_dict(api_json: dict, odds_key: str) -> dict:
+    """data.odds[odds_key] を取り出す。NG/欠損時は空 dict。"""
+    data = api_json.get("data")
+    if not isinstance(data, dict):
+        return {}
+    odds = data.get("odds")
+    if not isinstance(odds, dict):
+        return {}
+    block = odds.get(odds_key)
+    return block if isinstance(block, dict) else {}
 
 
-def fetch_tansho_fukusho(race_id: str) -> dict:
-    """単勝・複勝オッズをHTMLページから取得"""
-    soup = _fetch_soup(race_id, "b1")
-    data = {"tansho": [], "fukusho": []}
-
-    # 単勝テーブル (#odds_tan_block内)
-    tan_block = soup.select_one("#odds_tan_block table.RaceOdds_HorseList_Table")
-    if tan_block:
-        for row in tan_block.select("tr")[1:]:  # ヘッダー行をスキップ
-            cells = row.find_all("td")
-            if len(cells) >= 6:
-                umaban = cells[1].get_text(strip=True)
-                odds = cells[5].get_text(strip=True)
-                if umaban:
-                    data["tansho"].append({"num": umaban, "odds": odds})
-
-    # 複勝テーブル (#odds_fuku_block内)
-    fuku_block = soup.select_one("#odds_fuku_block table.RaceOdds_HorseList_Table")
-    if fuku_block:
-        for row in fuku_block.select("tr")[1:]:
-            cells = row.find_all("td")
-            if len(cells) >= 6:
-                umaban = cells[1].get_text(strip=True)
-                odds_text = cells[5].get_text(strip=True)
-                if umaban:
-                    # 複勝オッズは "1.2 - 3.4" の形式の場合がある
-                    if "-" in odds_text and odds_text != "---.-":
-                        parts = odds_text.split("-")
-                        data["fukusho"].append({
-                            "num": umaban,
-                            "odds_low": parts[0].strip(),
-                            "odds_high": parts[1].strip(),
-                        })
-                    else:
-                        data["fukusho"].append({
-                            "num": umaban,
-                            "odds_low": odds_text,
-                            "odds_high": odds_text,
-                        })
-
-    return data
+def _unpad(combo_key: str) -> list[str]:
+    """'0102' -> ['1','2'] / '010203' -> ['1','2','3'] / '01' -> ['1']。"""
+    return [str(int(combo_key[i:i + 2])) for i in range(0, len(combo_key), 2)]
 
 
-def fetch_combined_odds(race_id: str, type_param: str) -> list[list]:
-    """馬連・馬単・ワイドなどの組み合わせオッズをHTMLから取得
+def parse_tansho_fukusho(api_json: dict) -> dict:
+    """type=1 のAPI JSONから単勝・複勝を抽出する純関数。"""
+    tan_block = _odds_dict(api_json, "1")
+    fuku_block = _odds_dict(api_json, "2")
 
-    三角行列テーブルをパースして [馬番1, 馬番2, オッズ] のリストを返す。
-    """
-    soup = _fetch_soup(race_id, type_param)
-    rows = []
-
-    for table in soup.select("table.Odds_Table"):
-        tr_list = table.find_all("tr")
-        if not tr_list:
-            continue
-
-        # 最初の行は軸馬番号
-        first_cells = tr_list[0].find_all(["td", "th"])
-        if not first_cells:
-            continue
-        axis_num = first_cells[0].get_text(strip=True)
-
-        # 残りの行は相手馬番号とオッズ
-        for tr in tr_list[1:]:
-            cells = tr.find_all("td")
-            if len(cells) >= 2:
-                partner_num = cells[0].get_text(strip=True)
-                odds_val = cells[1].get_text(strip=True)
-                if axis_num and partner_num:
-                    rows.append([axis_num, partner_num, odds_val])
-
-    # オッズ順にソート（数値変換できないものは末尾へ）
-    def odds_key(r):
+    tansho = []
+    for k, v in sorted(tan_block.items(), key=lambda kv: int(kv[0])):
         try:
-            return float(r[-1])
-        except (ValueError, IndexError):
-            return 9999
+            tansho.append({"num": _unpad(k)[0], "odds": v[0]})
+        except (IndexError, ValueError):
+            continue
 
-    rows.sort(key=odds_key)
+    fukusho = []
+    for k, v in sorted(fuku_block.items(), key=lambda kv: int(kv[0])):
+        try:
+            fukusho.append({"num": _unpad(k)[0], "odds_low": v[0], "odds_high": v[1]})
+        except (IndexError, ValueError):
+            continue
+
+    return {"tansho": tansho, "fukusho": fukusho}
+
+
+def _odds_sort_key(row: list) -> float:
+    try:
+        return float(row[-1])
+    except (ValueError, IndexError):
+        return 9999.0
+
+
+def parse_combined(api_json: dict, odds_key: str) -> list[list]:
+    """馬連(4)・ワイド(5)・馬単(6) のAPI JSONから [馬番1, 馬番2, オッズ] を抽出。
+
+    ワイドは v0（低オッズ）を採用（現行スキーマ互換）。
+    高オッズ側 vals[1] は intentionally dropped — downstream uses low value for both bounds.
+    """
+    block = _odds_dict(api_json, odds_key)
+    rows = []
+    for combo_key, vals in block.items():
+        try:
+            n1, n2 = _unpad(combo_key)
+            rows.append([n1, n2, vals[0]])
+        except (ValueError, IndexError):
+            continue
+    rows.sort(key=_odds_sort_key)
     return rows
 
 
-def fetch_sanren_odds(race_id: str, type_param: str, head_count: int = 18) -> list[list]:
-    """3連複・3連単オッズをHTMLから取得
-
-    軸馬ごとにページを取得し、三角行列を展開して
-    [馬番1, 馬番2, 馬番3, オッズ] のリストを返す。
-    """
-    all_rows = []
-    seen = set()
-
-    for jiku in range(1, head_count + 1):
-        url = (
-            f"https://race.netkeiba.com/odds/index.html"
-            f"?race_id={race_id}&type={type_param}&jiku={jiku}"
-        )
+def parse_sanren(api_json: dict, odds_key: str) -> list[list]:
+    """三連複(7)・三連単(8) のAPI JSONから [馬番1, 馬番2, 馬番3, オッズ] を抽出。"""
+    block = _odds_dict(api_json, odds_key)
+    rows = []
+    for combo_key, vals in block.items():
         try:
-            resp = requests.get(url, headers=HEADERS, timeout=15)
-            resp.raise_for_status()
-            resp.encoding = "EUC-JP"
-        except requests.RequestException:
-            continue
-
-        soup = BeautifulSoup(resp.text, "lxml")
-        tables = soup.select("table.Odds_Table")
-        if not tables:
-            break  # この軸馬は出走していない → これ以上の軸馬もなし
-
-        for table in tables:
-            tr_list = table.find_all("tr")
-            if not tr_list:
-                continue
-
-            first_cells = tr_list[0].find_all(["td", "th"])
-            if not first_cells:
-                continue
-            second_num = first_cells[0].get_text(strip=True)
-
-            for tr in tr_list[1:]:
-                cells = tr.find_all("td")
-                if len(cells) >= 2:
-                    third_num = cells[0].get_text(strip=True)
-                    odds_val = cells[1].get_text(strip=True)
-
-                    if type_param == "b7":
-                        # 3連複: 順番不問なのでソートして重複排除
-                        combo = tuple(sorted([str(jiku), second_num, third_num]))
-                    else:
-                        # 3連単: 順番が意味を持つ
-                        combo = (str(jiku), second_num, third_num)
-
-                    if combo not in seen:
-                        seen.add(combo)
-                        all_rows.append(list(combo) + [odds_val])
-
-        time.sleep(0.3)
-
-    def odds_key(r):
-        try:
-            return float(r[-1])
+            n1, n2, n3 = _unpad(combo_key)
+            rows.append([n1, n2, n3, vals[0]])
         except (ValueError, IndexError):
-            return 9999
+            continue
+    rows.sort(key=_odds_sort_key)
+    return rows
 
-    all_rows.sort(key=odds_key)
-    return all_rows
+
+def fetch_tansho_fukusho(race_id: str) -> dict:
+    """単勝・複勝オッズを JSON API から取得"""
+    return parse_tansho_fukusho(_fetch_api_json(race_id, 1))
+
+
+def fetch_combined_odds(race_id: str, type_param: str) -> list[list]:
+    """馬連・馬単・ワイドの組み合わせオッズを JSON API から取得"""
+    api_type = _TYPE_PARAM_TO_API[type_param]
+    return parse_combined(_fetch_api_json(race_id, api_type), str(api_type))
+
+
+def fetch_sanren_odds(race_id: str, type_param: str, head_count: int = 18) -> list[list]:
+    """3連複・3連単オッズを JSON API から取得（1リクエストで全通り）"""
+    api_type = _TYPE_PARAM_TO_API[type_param]
+    return parse_sanren(_fetch_api_json(race_id, api_type), str(api_type))
+
+
+def _assemble_snapshot(race_id, snapshot_at, odds_status, tf,
+                       umaren_rows, wide_rows, umatan_rows,
+                       sanrenpuku_rows, sanrentan_rows) -> dict:
+    """各馬券種の行データを .odds.json スキーマの dict に集約する純関数。"""
+    return {
+        "race_id": race_id,
+        "snapshot_at": snapshot_at,
+        "odds_status": odds_status,
+        "tansho": tf.get("tansho", []),
+        "fukusho": tf.get("fukusho", []),
+        "umaren": [
+            {"combination": f"{r[0]}-{r[1]}", "odds": r[2]} for r in umaren_rows
+        ],
+        "wide": [
+            {"combination": f"{r[0]}-{r[1]}", "odds_low": r[2], "odds_high": r[2]}
+            for r in wide_rows
+        ],
+        "umatan": [
+            {"combination": f"{r[0]}→{r[1]}", "odds": r[2]} for r in umatan_rows
+        ],
+        "sanrenpuku": [
+            {"combination": f"{r[0]}-{r[1]}-{r[2]}", "odds": r[3]}
+            for r in sanrenpuku_rows
+        ],
+        "sanrentan": [
+            {"combination": f"{r[0]}→{r[1]}→{r[2]}", "odds": r[3]}
+            for r in sanrentan_rows
+        ],
+    }
+
+
+def fetch_all_odds(race_id: str, head_count: int = 18) -> dict:
+    """全7馬券種のオッズを JSON API から取得し snapshot dict を返す。
+
+    odds_status は単勝・複勝(type=1)レスポンスの status を採用する。
+    head_count は後方互換のため残すが未使用。
+    """
+    tan_json = _fetch_api_json(race_id, 1)
+    odds_status = tan_json.get("status", "")
+    tf = parse_tansho_fukusho(tan_json)
+    time.sleep(0.5)
+
+    umaren_rows = fetch_combined_odds(race_id, "b4")
+    time.sleep(0.5)
+    wide_rows = fetch_combined_odds(race_id, "b5")
+    time.sleep(0.5)
+    umatan_rows = fetch_combined_odds(race_id, "b6")
+    time.sleep(0.5)
+    sanrenpuku_rows = fetch_sanren_odds(race_id, "b7")
+    time.sleep(0.5)
+    sanrentan_rows = fetch_sanren_odds(race_id, "b8")
+
+    return _assemble_snapshot(
+        race_id=race_id,
+        snapshot_at=datetime.now(JST).isoformat(),
+        odds_status=odds_status,
+        tf=tf,
+        umaren_rows=umaren_rows,
+        wide_rows=wide_rows,
+        umatan_rows=umatan_rows,
+        sanrenpuku_rows=sanrenpuku_rows,
+        sanrentan_rows=sanrentan_rows,
+    )
 
 
 def print_tansho_fukusho(race_id: str):

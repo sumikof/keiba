@@ -57,6 +57,9 @@ description: "中央競馬の予想を 8 段階のロジカルなプロセスで
 2. `get_odds.py <race_id> --type tansho` — 単勝オッズ
 3. `get_odds.py <race_id> --type fukusho` — 複勝オッズ
 4. `get_odds.py <race_id> --type <user_type>` — ユーザ指定馬券種のオッズ
+
+> オッズは netkeiba の JSON API から取得され、発売中は暫定オッズ（status: middle）が返る。`---.-` にはならない。
+
 5. 各出走馬について `get_horse_info.py <horse_id> --races 10` — 過去 10 走
 
 各馬の戦績は段階 4・5 で集計する。
@@ -221,9 +224,19 @@ JSON のスキーマ:
 
 `category` は `main` / `sub` / `dark_horse`（戦略ファイルで定義された比重ブロック）。
 
-`predicted_odds` には予想時点で取得できたオッズを入れる（参考値）。確定オッズは別途 `snapshot_odds.py` で取得する。
+`predicted_odds` には予想時点で取得できたオッズを入れる（レポート表示用の参考値）。バックテストの払戻計算には、次節「予想時オッズの自動保存」で生成した `.odds.json`（全馬券種）を使う。
 
 `generated_at` は JST タイムゾーン (`+09:00`) で出力する。
+
+### 予想時オッズの自動保存（必須）
+
+予想 JSON を出力したら、続けて予想時点の暫定オッズを全馬券種分 `.odds.json` として保存する:
+
+```bash
+python3 .claude/skills/netkeiba-scraper/scripts/snapshot_odds.py <race_id>
+```
+
+これにより `reports/yyyymmdd_<レース名>.odds.json` が生成され、バックテスト（`/keiba-result`）の払戻計算で使う「オッズ・オブ・レコード」になる。予想 JSON が先に出力されていれば basename は自動検出される。
 
 ---
 
