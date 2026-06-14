@@ -57,14 +57,20 @@ def parse_tansho_fukusho(api_json: dict) -> dict:
     tan_block = _odds_dict(api_json, "1")
     fuku_block = _odds_dict(api_json, "2")
 
-    tansho = [
-        {"num": _unpad(k)[0], "odds": v[0]}
-        for k, v in sorted(tan_block.items(), key=lambda kv: int(kv[0]))
-    ]
-    fukusho = [
-        {"num": _unpad(k)[0], "odds_low": v[0], "odds_high": v[1]}
-        for k, v in sorted(fuku_block.items(), key=lambda kv: int(kv[0]))
-    ]
+    tansho = []
+    for k, v in sorted(tan_block.items(), key=lambda kv: int(kv[0])):
+        try:
+            tansho.append({"num": _unpad(k)[0], "odds": v[0]})
+        except (IndexError, ValueError):
+            continue
+
+    fukusho = []
+    for k, v in sorted(fuku_block.items(), key=lambda kv: int(kv[0])):
+        try:
+            fukusho.append({"num": _unpad(k)[0], "odds_low": v[0], "odds_high": v[1]})
+        except (IndexError, ValueError):
+            continue
+
     return {"tansho": tansho, "fukusho": fukusho}
 
 
@@ -79,12 +85,16 @@ def parse_combined(api_json: dict, odds_key: str) -> list[list]:
     """馬連(4)・ワイド(5)・馬単(6) のAPI JSONから [馬番1, 馬番2, オッズ] を抽出。
 
     ワイドは v0（低オッズ）を採用（現行スキーマ互換）。
+    高オッズ側 vals[1] は intentionally dropped — downstream uses low value for both bounds.
     """
     block = _odds_dict(api_json, odds_key)
     rows = []
     for combo_key, vals in block.items():
-        n1, n2 = _unpad(combo_key)
-        rows.append([n1, n2, vals[0]])
+        try:
+            n1, n2 = _unpad(combo_key)
+            rows.append([n1, n2, vals[0]])
+        except (ValueError, IndexError):
+            continue
     rows.sort(key=_odds_sort_key)
     return rows
 
@@ -94,8 +104,11 @@ def parse_sanren(api_json: dict, odds_key: str) -> list[list]:
     block = _odds_dict(api_json, odds_key)
     rows = []
     for combo_key, vals in block.items():
-        n1, n2, n3 = _unpad(combo_key)
-        rows.append([n1, n2, n3, vals[0]])
+        try:
+            n1, n2, n3 = _unpad(combo_key)
+            rows.append([n1, n2, n3, vals[0]])
+        except (ValueError, IndexError):
+            continue
     rows.sort(key=_odds_sort_key)
     return rows
 
