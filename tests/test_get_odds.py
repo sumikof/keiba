@@ -55,3 +55,25 @@ def test_parse_combined_uses_low_value_for_wide():
 
 def test_parse_combined_handles_ng():
     assert parse_combined({"status": "NG", "data": ""}, "4") == []
+
+
+from get_odds import parse_sanren
+
+
+def test_parse_sanren_unpads_three_horses_and_sorts():
+    api = {
+        "status": "middle",
+        "data": {"odds": {"7": {
+            "010203": ["1260.4", "", "227"],
+            "010204": ["88.8", "", "30"],
+        }}},
+    }
+    result = parse_sanren(api, "7")
+    assert result == [
+        ["1", "2", "4", "88.8"],
+        ["1", "2", "3", "1260.4"],
+    ]
+
+
+def test_parse_sanren_handles_ng():
+    assert parse_sanren({"status": "NG", "data": ""}, "8") == []
