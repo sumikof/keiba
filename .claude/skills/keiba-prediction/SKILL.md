@@ -54,13 +54,24 @@ description: "中央競馬の予想を 8 段階のロジカルなプロセスで
 以下を `netkeiba-scraper` で取得する:
 
 1. `get_race_entry.py <race_id>` — 出走表
-2. `get_odds.py <race_id> --type tansho` — 単勝オッズ
-3. `get_odds.py <race_id> --type fukusho` — 複勝オッズ
-4. `get_odds.py <race_id> --type <user_type>` — ユーザ指定馬券種のオッズ
+2. `get_odds.py <race_id> --json` — **全 7 馬券種のオッズを機械可読 JSON で 1 回取得**
+3. 各出走馬について `get_horse_info.py <horse_id> --races 10` — 過去 10 走
 
-> オッズは netkeiba の JSON API から取得され、発売中は暫定オッズ（status: middle）が返る。`---.-` にはならない。
+#### オッズ JSON の取得・利用（必須）
 
-5. 各出走馬について `get_horse_info.py <horse_id> --races 10` — 過去 10 走
+オッズは `get_odds.py <race_id> --json` を**1 コール**で取得し、その出力（`fetch_all_odds` と同一スキーマの dict）を予想全体で使い回す:
+
+```bash
+python3 .claude/skills/netkeiba-scraper/scripts/get_odds.py <race_id> --json
+```
+
+- 発売中は暫定オッズ（`odds_status: "middle"`）が返る。`---.-` にはならない。
+- このJSONを以下に直接利用する:
+  - **段階 5「人気との乖離」スコアリング** … `tansho`（単勝オッズ／人気順）を参照
+  - **予想 JSON の `predicted_odds`** … 該当馬券種の組み合わせオッズを転記
+  - **段階 9 の `.odds.json` 保存** … この出力をそのままファイルに書き出す（再取得不要）
+
+取得した JSON は後段で再利用するため保持しておく。
 
 各馬の戦績は段階 4・5 で集計する。
 
@@ -230,13 +241,15 @@ JSON のスキーマ:
 
 ### 予想時オッズの自動保存（必須）
 
-予想 JSON を出力したら、続けて予想時点の暫定オッズを全馬券種分 `.odds.json` として保存する:
+段階 3 で取得した `get_odds.py <race_id> --json` の出力を、そのまま `reports/yyyymmdd_<レース名>.odds.json` に書き出す:
 
 ```bash
-python3 .claude/skills/netkeiba-scraper/scripts/snapshot_odds.py <race_id>
+python3 .claude/skills/netkeiba-scraper/scripts/get_odds.py <race_id> --json > reports/yyyymmdd_<レース名>.odds.json
 ```
 
-これにより `reports/yyyymmdd_<レース名>.odds.json` が生成され、バックテスト（`/keiba-result`）の払戻計算で使う「オッズ・オブ・レコード」になる。予想 JSON が先に出力されていれば basename は自動検出される。
+これにより、段階 3 で利用したオッズと完全に同一のスナップショットが保存され、バックテスト（`/keiba-result`）の払戻計算で使う「オッズ・オブ・レコード」になる。オッズ取得は予想全体で 1 回だけで済む。
+
+> より発走に近いオッズで上書きしたい場合のみ、後から `snapshot_odds.py <race_id>` を任意で実行する（予想 JSON が出力済みなら basename は自動検出）。
 
 ---
 

@@ -6,9 +6,11 @@ netkeibaからオッズを取得する。
   python3 get_odds.py 202501010101 --type umaren         # 馬連
   python3 get_odds.py 202501010101 --type sanrenpuku     # 3連複
   python3 get_odds.py 202501010101 --type all            # 全馬券種
+  python3 get_odds.py 202501010101 --json                # 全馬券種を機械可読 JSON で出力
 """
 
 import sys
+import json
 import argparse
 import time
 import requests
@@ -285,12 +287,27 @@ def main():
         choices=list(ODDS_TYPES.keys()) + ["all"],
         help="馬券種別 (デフォルト: tansho 単勝・複勝も同時表示)"
     )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="全7馬券種のオッズを機械可読 JSON で stdout に出力（--type は無視）。"
+             "keiba-prediction スキルが消費する用途。"
+    )
     args = parser.parse_args()
 
     race_id = args.race_id.strip()
     if len(race_id) != 12 or not race_id.isdigit():
         print(f"エラー: レースIDは12桁の数字です (例: 202501010101)")
         sys.exit(1)
+
+    if args.json:
+        try:
+            snapshot = fetch_all_odds(race_id)
+        except requests.RequestException as e:
+            print(f"通信エラー: {e}", file=sys.stderr)
+            sys.exit(1)
+        print(json.dumps(snapshot, ensure_ascii=False, indent=2))
+        return
 
     print(f"オッズを取得中... (race_id: {race_id})")
 

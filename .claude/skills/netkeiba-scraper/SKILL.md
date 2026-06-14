@@ -79,11 +79,16 @@ python ./scripts/get_odds.py 202501010101 --type umaren
 
 # 3連複
 python ./scripts/get_odds.py 202501010101 --type sanrenpuku
+
+# 全7馬券種を機械可読 JSON で出力（スキルから消費する用途）
+python ./scripts/get_odds.py 202501010101 --json
 ```
 
 対応馬券: `tansho`（単勝）, `fukusho`（複勝）, `umaren`（馬連）, `umatan`（馬単）, `wide`（ワイド）, `sanrenpuku`（3連複）, `sanrentan`（3連単）
 
 オッズは netkeiba の JSON API（`api_get_jra_odds.html`）から取得する。発売中は暫定オッズ（`status: middle`）、確定後は `status: result` が返り、いずれも実数で取得できる。三連複・三連単も 1 リクエストで全通り取得する。
+
+`--json` を付けると、`--type` を無視して全 7 馬券種のオッズを `odds_status` 付きの JSON（`snapshot_odds.py` が保存する `.odds.json` と同一スキーマ）で stdout に出力する。`keiba-prediction` スキルはこれを 1 コールで取得し、人気乖離スコアリング・`predicted_odds`・`.odds.json` 保存に使い回す。エラーは stderr に出るため `> file.json` でそのまま保存できる。
 
 ### 出走馬情報（get_horse_info.py）
 

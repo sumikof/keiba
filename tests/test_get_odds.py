@@ -1,3 +1,5 @@
+import json
+
 from get_odds import parse_tansho_fukusho
 from get_odds import parse_combined
 from get_odds import parse_sanren
@@ -142,3 +144,21 @@ def test_assemble_snapshot_builds_full_schema():
     assert snap["umatan"] == [{"combination": "1→2", "odds": "389.2"}]
     assert snap["sanrenpuku"] == [{"combination": "1-2-3", "odds": "1260.4"}]
     assert snap["sanrentan"] == [{"combination": "1→2→3", "odds": "4651.8"}]
+
+
+def test_assemble_snapshot_is_json_serializable_with_unicode():
+    """--json モードが消費する snapshot が JSON で往復できること（→ など非ASCII含む）。"""
+    snap = _assemble_snapshot(
+        race_id="202605030411",
+        snapshot_at="2026-06-14T12:25:00+09:00",
+        odds_status="middle",
+        tf={"tansho": [{"num": "1", "odds": "13.5"}], "fukusho": []},
+        umaren_rows=[],
+        wide_rows=[],
+        umatan_rows=[["1", "2", "389.2"]],
+        sanrenpuku_rows=[],
+        sanrentan_rows=[["1", "2", "3", "4651.8"]],
+    )
+    dumped = json.dumps(snap, ensure_ascii=False)
+    assert "1→2" in dumped  # 矢印が文字化けせず保持される
+    assert json.loads(dumped) == snap
