@@ -35,6 +35,39 @@ ODDS_TYPES = {
 }
 
 
+def _odds_dict(api_json: dict, odds_key: str) -> dict:
+    """data.odds[odds_key] を取り出す。NG/欠損時は空 dict。"""
+    data = api_json.get("data")
+    if not isinstance(data, dict):
+        return {}
+    odds = data.get("odds")
+    if not isinstance(odds, dict):
+        return {}
+    block = odds.get(odds_key)
+    return block if isinstance(block, dict) else {}
+
+
+def _unpad(combo_key: str) -> list[str]:
+    """'0102' -> ['1','2'] / '010203' -> ['1','2','3'] / '01' -> ['1']。"""
+    return [str(int(combo_key[i:i + 2])) for i in range(0, len(combo_key), 2)]
+
+
+def parse_tansho_fukusho(api_json: dict) -> dict:
+    """type=1 のAPI JSONから単勝・複勝を抽出する純関数。"""
+    tan_block = _odds_dict(api_json, "1")
+    fuku_block = _odds_dict(api_json, "2")
+
+    tansho = [
+        {"num": _unpad(k)[0], "odds": v[0]}
+        for k, v in sorted(tan_block.items(), key=lambda kv: int(kv[0]))
+    ]
+    fukusho = [
+        {"num": _unpad(k)[0], "odds_low": v[0], "odds_high": v[1]}
+        for k, v in sorted(fuku_block.items(), key=lambda kv: int(kv[0]))
+    ]
+    return {"tansho": tansho, "fukusho": fukusho}
+
+
 def _fetch_soup(race_id: str, type_param: str) -> BeautifulSoup:
     """オッズページのHTMLを取得してBeautifulSoupを返す"""
     url = f"https://race.netkeiba.com/odds/index.html?race_id={race_id}&type={type_param}"
