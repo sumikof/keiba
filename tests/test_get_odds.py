@@ -24,3 +24,34 @@ def test_parse_tansho_fukusho_handles_ng_status():
     api = {"status": "NG", "data": ""}
     result = parse_tansho_fukusho(api)
     assert result == {"tansho": [], "fukusho": []}
+
+
+from get_odds import parse_combined
+
+
+def test_parse_combined_unpads_and_sorts_by_odds():
+    api = {
+        "status": "middle",
+        "data": {"odds": {"4": {
+            "0102": ["301.8", "", "65"],
+            "0103": ["10.5", "", "2"],
+        }}},
+    }
+    result = parse_combined(api, "4")
+    assert result == [
+        ["1", "3", "10.5"],
+        ["1", "2", "301.8"],
+    ]
+
+
+def test_parse_combined_uses_low_value_for_wide():
+    api = {
+        "status": "middle",
+        "data": {"odds": {"5": {"0102": ["57.7", "60.5", "60"]}}},
+    }
+    result = parse_combined(api, "5")
+    assert result == [["1", "2", "57.7"]]
+
+
+def test_parse_combined_handles_ng():
+    assert parse_combined({"status": "NG", "data": ""}, "4") == []

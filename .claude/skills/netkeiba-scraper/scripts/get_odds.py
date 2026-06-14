@@ -68,6 +68,27 @@ def parse_tansho_fukusho(api_json: dict) -> dict:
     return {"tansho": tansho, "fukusho": fukusho}
 
 
+def _odds_sort_key(row: list) -> float:
+    try:
+        return float(row[-1])
+    except (ValueError, IndexError):
+        return 9999.0
+
+
+def parse_combined(api_json: dict, odds_key: str) -> list[list]:
+    """馬連(4)・ワイド(5)・馬単(6) のAPI JSONから [馬番1, 馬番2, オッズ] を抽出。
+
+    ワイドは v0（低オッズ）を採用（現行スキーマ互換）。
+    """
+    block = _odds_dict(api_json, odds_key)
+    rows = []
+    for combo_key, vals in block.items():
+        n1, n2 = _unpad(combo_key)
+        rows.append([n1, n2, vals[0]])
+    rows.sort(key=_odds_sort_key)
+    return rows
+
+
 def _fetch_soup(race_id: str, type_param: str) -> BeautifulSoup:
     """オッズページのHTMLを取得してBeautifulSoupを返す"""
     url = f"https://race.netkeiba.com/odds/index.html?race_id={race_id}&type={type_param}"
